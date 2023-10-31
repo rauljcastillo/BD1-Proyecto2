@@ -74,20 +74,18 @@ CREATE TABLE IF NOT EXISTS asignacion(
 
 CREATE TABLE IF NOT EXISTS desasignacion(
     id_desasignacion INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    ciclo VARCHAR(2) NOT NULL,
-    seccion CHAR(1) NOT NULL, 
-    curso_cod INTEGER NOT NULL,
+    curso_h INTEGER NOT NULL,
     carnet_es BIGINT NOT NULL,
-    FOREIGN KEY(curso_cod) REFERENCES curso(codigo),
+    FOREIGN KEY(curso_h) REFERENCES habilitacion(id_habilitacion),
     FOREIGN KEY(carnet_es) REFERENCES estudiante(carnet)
 );
 
 CREATE TABLE IF NOT EXISTS nota(
     id_nota INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
     anio INT NOT NULL,
-    ciclo CHAR(1) NOT NULL, 
-    seccion INTEGER NOT NULL,
-    nota BIGINT NOT NULL,
+    ciclo VARCHAR(2) NOT NULL, 
+    seccion CHAR(1) NOT NULL,
+    nota INT NOT NULL,
     curso_c INTEGER NOT NULL,
     carnet_est BIGINT NOT NULL,
     FOREIGN KEY(curso_c) REFERENCES curso(codigo),
@@ -96,9 +94,9 @@ CREATE TABLE IF NOT EXISTS nota(
 
 CREATE TABLE IF NOT EXISTS acta(
     id_acta INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    fecha DATE NOT NULL,
-    ciclo CHAR(1) NOT NULL,
-    seccion INTEGER NOT NULL,
-    codigo_c INTEGER NOT NULL,
-    FOREIGN KEY(codigo_c) REFERENCES curso(codigo)
+    fecha DATETIME NOT NULL,
+    ciclo VARCHAR(2) NOT NULL,
+    seccion CHAR(1) NOT NULL,
+    codigo_h INTEGER NOT NULL,
+    FOREIGN KEY(codigo_h) REFERENCES habilitacion(id_habilitacion)
 );

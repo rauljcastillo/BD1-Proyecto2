@@ -104,7 +104,7 @@ proc_carrera:BEGIN
 		END IF;
 
 	ELSE 
-		CALL Message("El nombre de la carrera solo debe contener letras")
+		CALL Message("El nombre de la carrera solo debe contener letras");
 	END IF;
 END $$
 DELIMITER ;
@@ -178,6 +178,8 @@ proc_docente: BEGIN
 		LEAVE proc_docente;
 	ELSEIF exist_correo=1 THEN
 		CALL Message("El correo ya está registrado");
+	ELSEIF validemail(d_correo)=0 THEN
+		CALL Message("Ingrese un correo válido");
 	END IF;
 END $$
 DELIMITER ;
@@ -220,6 +222,8 @@ proc_curso: BEGIN
 	IF exist_codigo=0 AND exist_carrera=1 AND esPositivo(c_creditosn)=1 AND esEntero(c_creditoso)=1 THEN
 		INSERT INTO curso(codigo,nombre,creditos_necesarios,creditos_otorga,obligatorio,id_carre) VALUES(c_codigo,c_nombre
 		,c_creditosn,c_creditoso,c_obligatorio,c_carrera);
+		SELECT CONCAT("Curso agregado con exito");
+		LEAVE proc_curso;
 	ELSEIF exist_carrera=0 THEN
 		SELECT CONCAT("La carrera ",c_carrera," no existe") as 'Error';
 		LEAVE proc_curso;
@@ -266,21 +270,7 @@ proc_habilitar: BEGIN
 
 	SELECT EXISTS(SELECT codigo FROM curso WHERE codigo=h_codigoc) INTO exist_curso;
 	SELECT EXISTS(SELECT siif FROM docente WHERE siif=h_docente) INTO exist_docente;
-	IF exist_curso=1 AND existciclo(UPPER(h_ciclo))=1 AND esEntero(h_cupo)=1 AND exist_docente=1 THEN
-
-		SELECT count(*)  INTO existeh FROM habilitacion WHERE ciclo=h_ciclo AND seccion=h_seccion AND codigo=h_codigoc;
-		IF existeh=0 THEN
-			SELECT year(CURDATE()) INTO fecha_actual;
-			INSERT INTO habilitacion(ciclo,seccion,cupo_maximo,fecha_creacion,codigo,siif) VALUES(
-				h_ciclo,UPPER(h_seccion),h_cupo,fecha_actual,h_codigoc,h_docente
-			);
-			SELECT CONCAT("Curso habilitado con éxito") as 'Mensaje';
-		ELSE 
-			SELECT CONCAT("El curso ya está habilitado") as 'Error';
-			LEAVE proc_habilitar;
-		END IF;
-
-	ELSEIF exist_curso=0 THEN
+	IF exist_curso=0 THEN
 		SELECT CONCAT("El curso ",h_codigoc," no existe") as 'Error';
 		LEAVE proc_habilitar;
 	ELSEIF existciclo(UPPER(h_ciclo))=0 THEN
@@ -288,11 +278,24 @@ proc_habilitar: BEGIN
 		LEAVE proc_habilitar;
 	ELSEIF esEntero(h_cupo)=0 THEN
 		CALL Message("El numero de cupo debe ser mayor que 0");
-	ELSEIF exist_seccion=1 THEN
-		SELECT CONCAT("La seccion ",h_seccion," ya existe") as 'Error';
+		LEAVE proc_habilitar;
+	ELSEIF sololetras(h_seccion)=0 THEN
+		CALL Message("La seccion debe ser una letra");
 		LEAVE proc_habilitar;
 	ELSEIF exist_docente=0 THEN
 		SELECT CONCAT("El docente con indentificacion ", siif," no existe") as 'Error';
+	ELSE
+		SELECT count(*)  INTO existeh FROM habilitacion WHERE ciclo=h_ciclo AND seccion=h_seccion AND codigo=h_codigoc;
+		IF existeh=0 THEN
+			SELECT year(CURDATE()) INTO fecha_actual;
+			INSERT INTO habilitacion(ciclo,seccion,cupo_maximo,fecha_creacion,codigo,siif) VALUES(
+				UPPER(h_ciclo),UPPER(h_seccion),h_cupo,fecha_actual,h_codigoc,h_docente
+			);
+			SELECT CONCAT("Curso habilitado con éxito") as 'Mensaje';
+		ELSE 
+			SELECT CONCAT("El curso ya está habilitado") as 'Error';
+			LEAVE proc_habilitar;
+		END IF;
 	END IF;
 END $$
 DELIMITER ;
@@ -319,11 +322,8 @@ proc_horario: BEGIN
 	END IF;
 
 	SELECT EXISTS(SELECT id_habilitacion from habilitacion WHERE id_habilitacion=id_cursohab) INTO existe_hab;
-	IF existe_hab=1 AND isDia(h_dia)=1 AND isFecha(h_horario)=1 THEN
-		INSERT INTO horario(id_habilitacion,dia,horario) VALUES(id_cursohab,h_dia,h_horario);
-		SELECT CONCAT("Horario agregado con exito") as 'Mensaje';
-	ELSEIF existe_hab=0 THEN
-		SELECT CONCAT("El curso con id", id_cursohab," no está habilitado") as 'Error';
+	IF existe_hab=0 THEN
+		SELECT CONCAT("El curso con id ", id_cursohab," no está habilitado") as 'Error';
 		LEAVE proc_horario;
 	ELSEIF isDia(h_dia)=0 THEN
 		CALL Message("Ingrese un formato válido para el día");
@@ -331,7 +331,12 @@ proc_horario: BEGIN
 	ELSEIF isFecha(h_horario)=0 THEN
 		CALL Message("Ingrese un formato valido de horario");
 		LEAVE proc_horario;
+	ELSE
+		INSERT INTO horario(id_habilitacion,dia,horario) VALUES(id_cursohab,h_dia,h_horario);
+		SELECT CONCAT("Horario agregado con exito") as 'Mensaje';
+
 	END IF;
+
 END $$
 DELIMITER ;
 
@@ -352,7 +357,6 @@ proc_asignar: BEGIN
 	DECLARE cupo TINYINT;
 	DECLARE isAsignado BOOLEAN;
 	DECLARE isDes BOOLEAN;
-
 	IF a_codigoc IS NULL THEN
 		CALL Message("Por favor, ingrese el código del curso a asignar");
 		LEAVE proc_asignar;
@@ -371,12 +375,12 @@ proc_asignar: BEGIN
 	SELECT EXISTS(SELECT carnet FROM estudiante WHERE carnet=a_carnet) INTO exist_carne;
 	SELECT exists(SELECT codigo,id_carre FROM curso WHERE codigo=a_codigoc AND id_carre=carrera) INTO pertenece from estudiante WHERE carnet=a_carnet;
 	SELECT exists(SELECT codigo,id_carre FROM curso WHERE codigo=a_codigoc AND id_carre=0) INTO isArea;
-	SELECT COUNT(*) INTO ismatch FROM habilitacion WHERE codigo=a_codigoc AND fecha_creacion=anio_actual AND ciclo=a_ciclo AND seccion=UPPER(a_seccion);
+	SELECT COUNT(*) INTO ismatch FROM habilitacion WHERE codigo=a_codigoc AND fecha_creacion=anio_actual AND ciclo=UPPER(a_ciclo) AND seccion=UPPER(a_seccion);
 	SELECT EXISTS(SELECT carnet,creditos FROM estudiante WHERE carnet=a_carnet AND creditos>=creditos_necesarios ) INTO creditos_n FROM curso WHERE codigo=a_codigoc;
 	SELECT COUNT(*) INTO cupo FROM habilitacion WHERE ciclo=a_ciclo AND seccion=a_seccion AND codigo=a_codigoc AND cantidad_asignados<cupo_maximo;
 	SELECT EXISTS(SELECT ciclo,codigo_curso,carne_est FROM asignacion WHERE ciclo=a_ciclo AND codigo_curso=a_codigoc AND carne_est=a_carnet) INTO isAsignado;
-	SELECT EXISTS(SELECT * FROM desasignacion WHERE ciclo=a_ciclo AND seccion=a_seccion AND curso_cod=a_codigoc AND carnet_es=a_carnet) INTO isDes;
-
+	SELECT EXISTS(SELECT * FROM habilitacion WHERE ciclo=a_ciclo AND seccion=a_seccion AND curso_cod=a_codigoc) INTO isDes;
+	SELECT id_desasignacion =(SELECT id_habilitacion FROM habilitacion WHERE ciclo=UPPER(a_ciclo) AND seccion=UPPER(a_seccion) AND codigo=a_codigoc) INTO isDes FROM desasignacion;
 	IF exist_carne=0 THEN
 		SELECT CONCAT("El carnet ",a_carnet, " no existe");
 		LEAVE proc_asignar;
@@ -405,8 +409,8 @@ proc_asignar: BEGIN
 	ELSEIF isDes=1 THEN
 		CALL Message("Te desasignaste este curso, no puedes volver a asignarlo");
 		LEAVE proc_asignar;
-	ELSEIF (pertenece=1 OR isArea=1) AND ismatch=1 AND creditos_n=1 AND cupo>0 THEN
-		INSERT INTO asignacion(ciclo,seccion,anio,codigo_curso,carne_est) VALUES(a_ciclo,UPPER(a_seccion),anio_actual,a_codigoc,a_carnet);
+	ELSEIF (pertenece=1 OR isArea=1) THEN
+		INSERT INTO asignacion(ciclo,seccion,anio,codigo_curso,carne_est) VALUES(UPPER(a_ciclo),UPPER(a_seccion),anio_actual,a_codigoc,a_carnet);
 		UPDATE habilitacion
 		SET cantidad_asignados=cantidad_asignados+1
 		WHERE ciclo=a_ciclo AND seccion=UPPER(a_seccion) AND codigo=a_codigoc;
@@ -446,7 +450,7 @@ proc_des: BEGIN
 	SELECT EXISTS(SELECT * FROM asignacion WHERE carne_est=d_carnet AND ciclo=UPPER(d_ciclo) AND seccion=UPPER(d_seccion) AND  anio=anio_actual) INTO isAsignado;
 	
 	IF isAsignado=0 THEN
-		SELECT CONCAT("No estás asignado al curso ",d_codigoc," en el ciclo ",d_ciclo);
+		SELECT CONCAT("No estás asignado al curso ",d_codigoc);
 		LEAVE proc_des;
 	ELSEIF existciclo(UPPER(d_ciclo))=0 THEN
 		CALL Message("Ingrese un ciclo válido");
@@ -455,11 +459,15 @@ proc_des: BEGIN
 		CALL Message("No se puede desasignar, el curso no está habilitado");
 		LEAVE proc_des;
 	ELSE
-		INSERT INTO desasignacion(ciclo,seccion,curso_cod,carnet_es) VALUES(d_ciclo,d_seccion,d_codigoc,d_carnet);
+		INSERT INTO desasignacion(curso_h,carnet_es) VALUES(
+		(SELECT id_habilitacion FROM habilitacion WHERE ciclo=d_ciclo AND seccion=d_seccion AND codigo=d_codigoc),
+		d_carnet);
 		UPDATE habilitacion
 		SET cantidad_asignados=cantidad_asignados-1
 		WHERE ciclo=UPPER(d_ciclo) AND seccion=d_seccion AND codigo=d_codigoc AND fecha_creacion=anio_actual;
 		DELETE from asignacion WHERE carne_est=d_carnet AND ciclo=UPPER(d_ciclo) AND seccion=UPPER(d_seccion) AND anio=anio_actual AND codigo_curso=d_codigoc;
+		SELECT CONCAT("Curso desasignado con exito");
+		
 	END IF;
 END $$
 DELIMITER ;
@@ -506,6 +514,9 @@ proc_nota: BEGIN
 		UPDATE estudiante
 		SET creditos=creditos+ (SELECT creditos_otorga FROM curso WHERE codigo=i_codigoc) 
 		WHERE carnet=i_carnet;
+	ELSE
+		SELECT year(CURDATE()) INTO anio_actual;
+		INSERT INTO nota(anio,ciclo,seccion,nota,curso_c,carnet_est) VALUES(anio_actual,UPPER(i_ciclo),UPPER(i_seccion),ROUND(i_nota),i_codigoc,i_carnet);
 	END IF;
 END $$
 DELIMITER ;
@@ -518,8 +529,8 @@ CREATE PROCEDURE generarActa(
 )
 proc_generar:BEGIN
 	DECLARE cantidad_Ingresados INT;
-	DECLARE fecha_actual DATE;
-
+	DECLARE fecha_actual DATETIME;
+	DECLARE isfull INT;
 	IF g_curso IS NULL THEN
 		CALL Message("Por favor, ingrese el código del curso");
 		LEAVE proc_generar;
@@ -532,12 +543,17 @@ proc_generar:BEGIN
 	END IF;
 
 	SELECT COUNT(*) INTO cantidad_Ingresados FROM nota WHERE curso_c=g_curso AND ciclo=UPPER(g_ciclo) AND seccion=UPPER(g_seccion);
+	SELECT cantidad_asignados INTO isfull FROM habilitacion WHERE ciclo=UPPER(g_ciclo) AND seccion=UPPER(g_seccion) AND codigo=g_curso;
 	IF existciclo(UPPER(g_ciclo))=0 THEN
 		CALL Message("Por favor ingrese un formato");
 		LEAVE proc_generar;
-	ELSEIF cantidad_Ingresados=(SELECT cantidad_asignados FROM habilitacion WHERE ciclo=UPPER(g_ciclo) AND seccion=UPPER(g_seccion) AND codigo=g_curso) THEN
-		SELECT CURDATE() INTO fecha_actual;
-		INSERT INTO acta(fecha,ciclo,seccion,codigo_c) VALUES(fecha_actual,g_ciclo,g_seccion,g_curso);
+	ELSEIF isfull=0 THEN
+		CALL Message("No puede generar acta, no hay estudiantes asignados");
+		LEAVE proc_generar;
+	ELSEIF cantidad_Ingresados=isfull THEN
+		SELECT current_timestamp() INTO fecha_actual;
+		INSERT INTO acta(fecha,ciclo,seccion,codigo_h) VALUES(fecha_actual,g_ciclo,g_seccion,
+		(SELECT id_habilitacion FROM habilitacion WHERE ciclo=g_ciclo AND seccion=g_seccion AND codigo=g_curso));
 		LEAVE proc_generar;
 	ELSE
 		CALL Message("No se han ingresado todas las notas");
