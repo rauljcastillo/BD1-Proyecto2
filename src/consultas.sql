@@ -62,7 +62,7 @@ CREATE PROCEDURE consultarAsignados(
     IN c_curso INT,
     IN c_ciclo VARCHAR(2),
     IN c_anio INT,
-    INT c_seccion CHAR(1)
+    IN c_seccion CHAR(1)
 )
 
 proc_cAsignado: BEGIN
